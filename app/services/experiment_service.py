@@ -132,71 +132,31 @@ class ExperimentService:
 
         return AssignmentModel.model_validate(new_assignment)
 
-    def get_experiment_results(
-        self, experiment_id: str, config: Optional[dict[str, str]] = None
-    ):
-        """
-        Get the following:
+    def _generate_user_stats(self):
+        pass
 
-        experiment_total_enrollment
-        experiment overview: start_date, end_date, total_enrollment, days running, experiment status
-
-        Daily event volume
-        Weekly event volume
-        Variant Level analysis:
-        - Raw count of a specific EventORM.type (e.g., "click") per variant.
-        -
-        :param experiment_id:
-        :param config:
-        :return:
-        """
-        # Retrieve relevant data
-        experiment_orm = self.experiment_repo.get_experiment_with_variants(
-            experiment_id
-        )
-        variants_orm = experiment_orm.variants
-        assignment_orm = self.assignment_repo.get_assignments_for_experiment(
-            experiment_id
-        )
-        experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id)
-
-        # lookups --> should probably fix with joins in sql
-        user_to_variant_assignment = {
-            assignment.user_id: {
-                "variant_id": assignment.variant_id,
-                "assignment_timestamp": assignment.assignment_timestamp,
-            }
-            for assignment in assignment_orm
-        }
-        variant_id_to_variant_name = {
-            variant.variant_id: variant.variant_name for variant in variants_orm
-        }
-
-        # filter out events based on timestamp --> could move this to Repo layer in sql query later
+    def _filter_events(
+        self,
+        events: list[EventORM],
+        user_to_variant_assignment_lookup: dict[str, dict[str, str]],
+    ) -> list[EventORM]:
         filtered_events: list[EventORM] = []
-        for event in experiment_events_orm:
-            user_assignment_timestamp = user_to_variant_assignment[event.user_id][
-                "assignment_timestamp"
-            ]
+        for event in events:
+            user_assignment_timestamp = user_to_variant_assignment_lookup[
+                event.user_id
+            ]["assignment_timestamp"]
             if event.timestamp >= user_assignment_timestamp:
                 filtered_events.append(event)
+        return filtered_events
 
-        # global experiment stats
-        days_running = (
-            (experiment_orm.end_time - experiment_orm.start_time).days
-            if experiment_orm.end_time and datetime.utcnow() > experiment_orm.end_time
-            else (datetime.utcnow() - experiment_orm.start_time).days
-        )
-        global_conversion_rate = len(
-            set(
-                [
-                    event.user_id
-                    for event in experiment_events_orm
-                    if event.type == experiment_orm.primary_metric_name
-                ]
-            )
-        ) / len(assignment_orm)
-
+    def _generate_variant_agg_stats(
+        self,
+        assignment_orm: list[AssignmentORM],
+        experiment_events_orm: list[EventORM],
+        variant_id_to_variant_name: dict[str, dict[str, str]],
+        user_to_variant_assignment: dict[str, str],
+        primary_metric_name: str,
+    ):
         # aggregate event stats on variant level
         variant_stats = {}  # {variant_id: {total_users, metric_counts, conversion_users
 
@@ -225,7 +185,7 @@ class ExperimentService:
 
             variant_stats[variant_name]["event_type_counts"][metric] += 1
 
-            if metric == experiment_orm.primary_metric_name:
+            if metric == primary_metric_name:
                 variant_stats[variant_name]["conversion_users"].add(user_id)
 
         # clean up variant stats
@@ -241,6 +201,77 @@ class ExperimentService:
                 "event_counts": stats.get("event_type_counts"),
             }
 
+        return agg_variant_stats
+
+    def get_experiment_results(
+        self, experiment_id: str, config: Optional[dict[str, str]] = None
+    ):
+        """
+        Get the following:
+
+        experiment_total_enrollment
+        experiment overview: start_date, end_date, total_enrollment, days running, experiment status
+
+        Daily event volume
+        Weekly event volume
+        Variant Level analysis:
+        - Raw count of a specific EventORM.type (e.g., "click") per variant.
+        -
+        :param experiment_id:
+        :param config:
+        :return:
+        """
+        # Retrieve relevant data
+        experiment_orm = self.experiment_repo.get_experiment_with_variants(
+            experiment_id
+        )
+        variants_orm = experiment_orm.variants
+        assignment_orm = self.assignment_repo.get_assignments_for_experiment(
+            experiment_id
+        )
+        experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id)
+
+        # lookup tables
+        user_to_variant_assignment = {
+            assignment.user_id: {
+                "variant_id": assignment.variant_id,
+                "assignment_timestamp": assignment.assignment_timestamp,
+            }
+            for assignment in assignment_orm
+        }
+        variant_id_to_variant_name = {
+            variant.variant_id: variant.variant_name for variant in variants_orm
+        }
+
+        # filter out events based on user assignment timestamp
+        filtered_events: list[EventORM] = self._filter_events(
+            experiment_events_orm, user_to_variant_assignment
+        )
+
+        # global experiment stats
+        days_running = (
+            (experiment_orm.end_time - experiment_orm.start_time).days
+            if experiment_orm.end_time and datetime.utcnow() > experiment_orm.end_time
+            else (datetime.utcnow() - experiment_orm.start_time).days
+        )
+        global_conversion_rate = len(
+            set(
+                [
+                    event.user_id
+                    for event in filtered_events
+                    if event.type == experiment_orm.primary_metric_name
+                ]
+            )
+        ) / len(assignment_orm)
+
+        variant_agg_stats = self._generate_variant_agg_stats(
+            assignment_orm,
+            experiment_events_orm,
+            variant_id_to_variant_name,
+            user_to_variant_assignment,
+            experiment_orm.primary_metric_name,
+        )
+
         result = {
             "name": experiment_orm.name,
             "description": experiment_orm.description,
@@ -254,7 +285,7 @@ class ExperimentService:
             "total_users_in_experiment": len(assignment_orm),
             "global_conversion_rate": global_conversion_rate,
             # variant drill down stats
-            "variant_stats": agg_variant_stats,
+            "variant_stats": variant_agg_stats,
         }
 
         return result
