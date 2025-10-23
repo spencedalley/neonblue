@@ -10,7 +10,7 @@ from app.models.orm.event import EventORM
 from app.models.schemas.experiment import (
     ExperimentCreateModel,
     ExperimentResponseModel,
-    AssignmentModel,
+    AssignmentModel, ExperimentVariantConfigResponseModel,
 )
 from app.repositories.assignment_repo import AssignmentRepository
 from app.repositories.event_repo import EventRepository
@@ -39,19 +39,28 @@ class ExperimentService:
         """
         try:
             # Delegate the transactional database operation to the Repository
-            experiment_orm = self.experiment_repo.create_experiment(experiment_data)
+            experiment_orm: ExperimentORM = self.experiment_repo.create_experiment(experiment_data)
 
-            experiment_response_model = ExperimentResponseModel.model_validate(
-                experiment_orm
+            experiment_response_model: ExperimentResponseModel = ExperimentResponseModel(
+                experiment_id=experiment_orm.experiment_id,
+                name=experiment_orm.name,
+                description=experiment_orm.description,
+                status=experiment_orm.status,
+                start_time=experiment_orm.start_time,
+                end_time=experiment_orm.end_time,
+                variants=[ExperimentVariantConfigResponseModel(variant_id=variant.variant_id, variant_name=variant.variant_name, traffic_allocation_percent=variant.traffic_allocation_percent) for variant in experiment_orm.variants],
+                primary_metric_name=experiment_orm.primary_metric_name,
             )
 
             return experiment_response_model
 
         except ValueError as e:
             # Catch business validation errors raised by the Repository (e.g., 100% traffic check)
+            print(e)
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
             # Catch other unexpected errors
+            print(e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to create experiment: {str(e)}",
@@ -151,60 +160,64 @@ class ExperimentService:
 
     def _generate_variant_agg_stats(
         self,
+        variant_orm: list[VariantORM],
         assignment_orm: list[AssignmentORM],
         experiment_events_orm: list[EventORM],
-        variant_id_to_variant_name: dict[str, dict[str, str]],
+        variant_id_to_variant: dict[str, VariantORM],
         user_to_variant_assignment: dict[str, str],
         primary_metric_name: str,
     ):
-        # aggregate event stats on variant level
-        variant_stats = {}  # {variant_id: {total_users, metric_counts, conversion_users
+        # aggregate event stats on variant level, handle cases where variant has no assignments
+        variant_stats = {}
+        for variant in variant_orm:
+            variant_stats[variant.variant_name] = {
+                "users": set(),
+                "event_type_counts": defaultdict(int),
+                "conversion_users": set(),
+                "metrics": {"total_revenue": 0.0}
+            }
 
-        # go over every assignment for the experiment and populate the variant stats
+        # pull out user counts per variant assignment
         for assignment in assignment_orm:
             variant_id = assignment.variant_id
-            variant_name = variant_id_to_variant_name[variant_id]
+            variant = variant_id_to_variant[variant_id]
             user_id = assignment.user_id
+            variant_stats[variant.variant_name]["users"].add(user_id)
 
-            if variant_name not in variant_stats:
-                variant_stats[variant_name] = {
-                    "users": set(),
-                    "event_type_counts": defaultdict(int),
-                    "conversion_users": set(),
-                }
-
-            variant_stats[variant_name]["users"].add(user_id)
-
-        # user_stats = {} # count of number of events by user
-
+        # process events aggregate statistics per variant
         for event in experiment_events_orm:
             user_id = event.user_id
             metric = event.type
-            variant_id = user_to_variant_assignment.get(user_id).get("variant_id")
-            variant_name = variant_id_to_variant_name.get(variant_id)
+            variant_id = user_to_variant_assignment[user_id].get("variant_id")
+            variant = variant_id_to_variant.get(variant_id)
 
-            variant_stats[variant_name]["event_type_counts"][metric] += 1
+            variant_stats[variant.variant_name]["event_type_counts"][metric] += 1
 
             if metric == primary_metric_name:
-                variant_stats[variant_name]["conversion_users"].add(user_id)
+                variant_stats[variant.variant_name]["conversion_users"].add(user_id)
 
-        # clean up variant stats
+            if metric == "purchase" and event.properties.get("price"):
+                variant_stats[variant.variant_name]["metrics"]["total_revenue"] += event.properties.get("price")
+
+        # structure aggregated variant stats
         agg_variant_stats = {}
         for variant_name, stats in variant_stats.items():
             total_users = len(stats.get("users"))
             conversion_users = len(stats.get("conversion_users"))
-            conversion_rate = conversion_users / total_users
+            conversion_rate = conversion_users / total_users if total_users != 0 else 0.0
 
             agg_variant_stats[variant_name] = {
-                "total_users": total_users,
+                "total_assigned_users": total_users,
                 "conversion_rate": conversion_rate,
+                "conversion_count": conversion_users,
                 "event_counts": stats.get("event_type_counts"),
+                "metrics": stats.get("metrics")
             }
 
         return agg_variant_stats
 
     def get_experiment_results(
-        self, experiment_id: str, config: Optional[dict[str, str]] = None
+        self, experiment_id: str, filter_params: Optional[dict[str, str]] = None
     ):
         """
         Get the following:
@@ -218,7 +231,7 @@ class ExperimentService:
         - Raw count of a specific EventORM.type (e.g., "click") per variant.
         -
         :param experiment_id:
-        :param config:
+        :param filter_params:
         :return:
         """
         # Retrieve relevant data
@@ -239,8 +252,8 @@ class ExperimentService:
             }
             for assignment in assignment_orm
         }
-        variant_id_to_variant_name = {
-            variant.variant_id: variant.variant_name for variant in variants_orm
+        variant_id_to_variant = {
+            variant.variant_id: variant for variant in variants_orm
         }
 
         # filter out events based on user assignment timestamp
@@ -265,9 +278,10 @@ class ExperimentService:
         ) / len(assignment_orm)
 
         variant_agg_stats = self._generate_variant_agg_stats(
+            experiment_orm.variants,
             assignment_orm,
             experiment_events_orm,
-            variant_id_to_variant_name,
+            variant_id_to_variant,
             user_to_variant_assignment,
             experiment_orm.primary_metric_name,
         )

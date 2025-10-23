@@ -70,6 +70,7 @@ class ExperimentORM(Base):
     # One Experiment has Many VariantConfigs
     variants = relationship("VariantORM", back_populates="experiment")
 
+    # --- Relationship to Events ---
     # One Experiment has Many Events
     events = relationship("EventORM", back_populates="experiment")
 

@@ -67,7 +67,7 @@ class ExperimentVariantConfigResponseModel(BaseModel):
     )
 
 
-class ExperimentResponseModel(ExperimentModel):
+class ExperimentResponseModel(BaseModel):
     experiment_id: str = Field(..., description="Unique ID for the experiment.")
     name: str
     description: Optional[str] = None
@@ -76,12 +76,10 @@ class ExperimentResponseModel(ExperimentModel):
     )
     start_time: datetime = Field(default_factory=datetime.utcnow)
     end_time: Optional[datetime] = None
-    variants_ids: List[ExperimentVariantConfigResponseModel]
+    variants: List[ExperimentVariantConfigResponseModel]
     primary_metric_name: str = Field(..., description="Primary metric name")
-    total_traffic_allocation: float = Field(
-        ...,
-        description="Sum of all variant traffic_allocation_percent, should be 100.0.",
-    )
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- User Assignment ---
