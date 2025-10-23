@@ -174,7 +174,8 @@ class ExperimentService:
                 "users": set(),
                 "event_type_counts": defaultdict(int),
                 "conversion_users": set(),
-                "metrics": {"total_revenue": 0.0}
+                "metrics": {"total_revenue": 0.0},
+                "traffic_allocation": variant.traffic_allocation_percent
             }
 
         # pull out user counts per variant assignment
@@ -211,7 +212,8 @@ class ExperimentService:
                 "conversion_rate": conversion_rate,
                 "conversion_count": conversion_users,
                 "event_counts": stats.get("event_type_counts"),
-                "metrics": stats.get("metrics")
+                "metrics": stats.get("metrics"),
+                "traffic_allocation": stats.get("traffic_allocation")
             }
 
         return agg_variant_stats
