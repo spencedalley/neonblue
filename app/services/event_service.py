@@ -20,8 +20,6 @@ class EventService:
         1. Finds the active experiment assignment for the user.
         2. Records the event with the correct experiment context.
         """
-        # --- Repository Call ---
-        # Pass the enriched data (including resolved experiment context) to the repository
         recorded_event = self.event_repo.create_event(
             event_data=event_data
         )

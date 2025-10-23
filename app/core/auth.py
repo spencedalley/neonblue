@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
-from settings import config_settings
+from .settings import config_settings
 
 # 1. Define the scheme (This tells FastAPI where to look for the token)
 # We use "/api/v1/auth/token" as the tokenUrl, which is where clients

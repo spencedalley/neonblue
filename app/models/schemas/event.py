@@ -21,6 +21,6 @@ class EventCreateModel(BaseModel):
     experiment_id: Optional[str] = None
 
 
-class EventResponseModel(EventCreateModel):
+class EventResponseModel(BaseModel):
     event_id: str
     experiment_id: Optional[str] = None
