@@ -1,0 +1,81 @@
+# Python
+# -------------------------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+.installed.cfg
+*.manifest
+
+# Installer logs
+pip-log.txt
+pip-delete-this-file.txt
+
+# Unit test / coverage reports
+.coverage
+.tox/
+.pytest_cache/
+htmlcov/
+
+# Virtual environment
+.venv/
+venv/
+env/
+/bin
+/include
+/lib
+/lib64
+/pyvenv.cfg
+# Standard virtual env name for Poetry
+.venv
+
+# Runtime data
+*.sqlite
+*.db
+
+# Environment variables
+# Used for storing sensitive configuration (like database credentials, API keys)
+.env
+.flaskenv
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy/
+
+# Jupyter Notebook related files
+.ipynb_checkpoints
+
+# PyCharm related files
+# -------------------------------------------------------------------------------
+# Folders
+.idea/
+# Files
+*.iml
+*.iws
+*.ipr
+*.iprj
+
+# FastAPI specific (often)
+# -------------------------------------------------------------------------------
+# Docs (if generated locally)
+/docs_build/
+/site/
+
+# Logs
+logs/
+*.log
+
+# Windows thumbnail cache files
+Thumbs.db
