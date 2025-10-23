@@ -5,7 +5,7 @@ This project is a take-home assessment designed to demonstrate the construction 
 ### ✨ Features
 
   * **Experiment Management**: Create new experiments with multiple variants and defined traffic allocations.
-  * **Idempotent Assignment**: Guarantees a user receives the same variant assignment for an experiment persistently.
+  * **Idempotent User Assignment**: Guarantees a user receives the same variant assignment for an experiment persistently.
   * **Configurable Traffic Allocation**: Supports percentage-based traffic distribution across variants.
   * **Event Tracking**: Record detailed user events (e.g., "click", "purchase") with flexible properties.
   * **Performance Reporting**: An extensible endpoint for calculating experiment results, accounting for events only *after* a user's assignment.
@@ -33,12 +33,13 @@ This command:
 1.  Builds the Python application image.
 2.  Starts a **PostgreSQL** database container.
 3.  Runs alembic migrations for the application against the postgres database
-4.  Starts a PgAdmin container 
-3.  Starts the **API service** container, which connects to the database.
+4.  Starts a PgAdmin container for easy access for inspecting the postgresql database container. Accessible via localhost:5050.
+3.  Starts the **API service** container, which connects to the database. 
 
 ### 2\. Initial Database Setup
 
-The API service uses a relational database (PostgreSQL in this setup) for persistence. The initial setup requires running database migrations.
+The API service uses a relational database (PostgreSQL in this setup) for persistence. 
+The initial setup requires running database migrations and is handled by the `migrate` service in the docker-compose.yml.
 
 
 
@@ -67,6 +68,8 @@ For this implementation, the valid tokens are stored internally in the settings.
 ## 🚀 API Endpoints
 
 Below are the documented endpoints, including example usage (using `curl`).
+
+An up to date version of the endpoint documentation can be found at localhost:8000/docs when running the app. 
 
 ### 1\. Create a New Experiment
 
@@ -194,43 +197,49 @@ This endpoint is designed to be **flexible and analytical**, recognizing that di
 **Example Request (Focus on 'purchase' event):**
 
 ```bash
-curl -X GET 'http://localhost:8000/experiments/1/results?event_type=purchase' \
--H "Authorization: Bearer my-secret-auth-token"
+curl -X GET 'http://localhost:8000/experiments/1/results' \
+-H "Authorization: Bearer token"
 ```
 
 **Example Response Structure (Conceptual):**
 
 ```json
 {
-    "experiment_id": 1,
-    "experiment_name": "Homepage Redesign 2023",
-    "analysis_event": "purchase",
-    "summary": {
-        "analysis_start": "2023-10-23T00:00:00Z",
-        "analysis_end": "2023-10-23T23:59:59Z",
-        "total_users": 1000,
-        "total_conversions": 150
-    },
-    "variant_results": [
-        {
-            "variant_name": "Control",
-            "assigned_users": 500,
-            "conversions": 50,
-            "conversion_rate": 0.10,
-            "metrics": {"total_revenue": 5000.00}
+    "name": "experiment18",
+    "description": "test experiment",
+    "start_time": "2025-10-23T22:25:05.548612",
+    "end_time": null,
+    "experiment_days_running": 0,
+    "status": "DRAFT",
+    "total_variants": 2,
+    "total_events": 8,
+    "primary_metric_name": "click",
+    "total_users_in_experiment": 3,
+    "global_conversion_rate": 0.3333333333333333,
+    "variant_stats": {
+        "variant1": {
+            "total_assigned_users": 0,
+            "conversion_rate": 0.0,
+            "conversion_count": 0,
+            "event_counts": {},
+            "metrics": {
+                "total_revenue": 0.0
+            },
+            "traffic_allocation": 30.0
         },
-        {
-            "variant_name": "V1",
-            "assigned_users": 500,
-            "conversions": 100,
-            "conversion_rate": 0.20,
-            "metrics": {"total_revenue": 11000.00}
+        "variant2": {
+            "total_assigned_users": 3,
+            "conversion_rate": 0.3333333333333333,
+            "conversion_count": 1,
+            "event_counts": {
+                "click": 7,
+                "purchase": 1
+            },
+            "metrics": {
+                "total_revenue": 1000.0
+            },
+            "traffic_allocation": 70.0
         }
-    ],
-    "comparison": {
-        "lift_vs_control": 100.0, // (0.20 - 0.10) / 0.10 * 100
-        "p_value": 0.0001, // If advanced feature is implemented
-        "status": "V1 is significantly better"
     }
 }
 ```
