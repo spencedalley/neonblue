@@ -124,10 +124,6 @@ class ExperimentService:
                 detail=f"Experiment {experiment_id} not found.",
             )
 
-        # Filter to only RUNNING experiments in a real-world scenario
-        # if experiment.status != ExperimentStatus.RUNNING:
-        #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Experiment is not running.")
-
         # 2. Determine Assignment
         assigned_variant = self._allocate_variant(experiment.variants)
 
@@ -238,10 +234,18 @@ class ExperimentService:
         :param filter_params:
         :return:
         """
-        # Retrieve relevant data
+        # Get experimet
         experiment_orm = self.experiment_repo.get_experiment_with_variants(
             experiment_id
         )
+
+        if not experiment_orm:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Experiment {experiment_id} not found.",
+            )
+
+        # get associated data
         variants_orm = experiment_orm.variants
         assignment_orm = self.assignment_repo.get_assignments_for_experiment(
             experiment_id
@@ -279,7 +283,7 @@ class ExperimentService:
                     if event.type == experiment_orm.primary_metric_name
                 ]
             )
-        ) / len(assignment_orm)
+        ) / len(assignment_orm) if len(assignment_orm) else 0.0
 
         variant_agg_stats = self._generate_variant_agg_stats(
             experiment_orm.variants,

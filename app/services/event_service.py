@@ -1,5 +1,5 @@
 # services/event_service.py
-
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.repositories.event_repo import EventRepository
 from app.models.schemas.event import EventCreateModel, EventResponseModel
@@ -22,8 +22,19 @@ class EventService:
         1. Finds the active experiment assignment for the user.
         2. Records the event with the correct experiment context.
         """
-        recorded_event = self.event_repo.create_event(event_data=event_data)
+        try:
+            recorded_event = self.event_repo.create_event(event_data=event_data)
 
-        return EventResponseModel(
-            event_id=recorded_event.event_id, experiment_id=recorded_event.experiment_id
-        )
+            return EventResponseModel(
+                event_id=recorded_event.event_id, experiment_id=recorded_event.experiment_id
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to create event",
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Encountered error when creating event",
+            )
