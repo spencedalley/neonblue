@@ -8,9 +8,9 @@ services:
     image: postgres:16-alpine # Use a stable, lightweight image
     restart: always
     environment:
-      PGUSER: user
-      PGPASSWORD: secret
-      PGDB: fastapi_db
+      POSTGRES_USER: user        # Changed PGUSER to POSTGRES_USER for standard Postgres image
+      POSTGRES_PASSWORD: password  # Changed PGPASSWORD to POSTGRES_PASSWORD
+      POSTGRES_DB: fastapi_db    # Changed PGDB to POSTGRES_DB
     ports:
       # Expose port 5432 on the host (optional, mainly for debugging/admin tools)
       - "5432:5432"
@@ -33,7 +33,7 @@ services:
     image: experiment-api:latest-migrate # Give it a distinct image tag
     environment:
       # Must pass the DB URL so Alembic can connect
-      DATABASE_URL: postgresql://fastapi_user:password@db:5432/fastapi_db
+      DATABASE_URL: postgresql://user:password@db:5432/fastapi_db
     volumes:
       - .:/app
     depends_on:
@@ -41,8 +41,9 @@ services:
       db:
         condition: service_healthy
     # 🎯 New Command: Only runs the Alembic upgrade command and then exits (success if migration completes)
-    command: ["alembic", "upgrade", "head"]
+    command: ["python", "-m", "alembic", "upgrade", "head"]
     # Do NOT set restart: always, as it should exit successfully
+    restart: "no" # Important: Should run once and exit
 
   # ------------------------------------
   # 2. FastAPI Application Service
@@ -58,7 +59,7 @@ services:
       - "8000:8000"
     environment:
       # DATABASE_URL uses the service name 'db' as the host
-      DATABASE_URL: postgresql://user:secret@db:5432/fastapi_db
+      DATABASE_URL: postgresql://user:password@db:5432/fastapi_db
     depends_on:
       # Ensure the database container starts before the API container
       migrate:

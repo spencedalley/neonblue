@@ -33,6 +33,7 @@ WORKDIR /app
 # NOTE: Path updated to python3.13
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/
+COPY --from=builder /usr/local/bin/alembic /usr/local/bin/
 
 # Copy the application code (assuming the entry point is main.py)
 # This includes all your core, models, services, and repositories directories

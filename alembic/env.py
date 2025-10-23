@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config, create_engine
 from sqlalchemy import pool
 
 from alembic import context
+import os
 
 # 1. Import the shared Base object
 from app.models.orm.base import Base
@@ -70,8 +71,9 @@ def run_migrations_online() -> None:
 
     """
     print("online")
+    db_url = os.getenv("DATABASE_URL", "postgresql://fastapi_user:password@localhost:5432/fastapi_db")
     connectable = create_engine(
-        "postgresql://fastapi_user:password@localhost:5432/fastapi_db",
+        db_url,
         poolclass=pool.NullPool,
     )
 
