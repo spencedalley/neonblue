@@ -12,6 +12,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 # NOTE: In a real application, you would need to securely store the secret key
 # and use a library like `python-jose` to decode the JWT token.
 
+
 def require_auth_token(token: Annotated[str, Depends(oauth2_scheme)]):
     """
     Dependency function that requires a Bearer token and attempts to validate it.

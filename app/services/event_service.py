@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.repositories.event_repo import EventRepository
 from app.models.schemas.event import EventCreateModel, EventResponseModel
 from app.models.orm.event import EventORM
-from app.repositories.assignment_repo import AssignmentRepository  # Assuming an Assignment Repository exists
+from app.repositories.assignment_repo import (
+    AssignmentRepository,
+)  # Assuming an Assignment Repository exists
 
 
 class EventService:
@@ -20,8 +22,8 @@ class EventService:
         1. Finds the active experiment assignment for the user.
         2. Records the event with the correct experiment context.
         """
-        recorded_event = self.event_repo.create_event(
-            event_data=event_data
-        )
+        recorded_event = self.event_repo.create_event(event_data=event_data)
 
-        return EventResponseModel(event_id=recorded_event.event_id, experiment_id=recorded_event.experiment_id)
+        return EventResponseModel(
+            event_id=recorded_event.event_id, experiment_id=recorded_event.experiment_id
+        )

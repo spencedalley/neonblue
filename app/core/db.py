@@ -5,7 +5,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # Load connection string from environment variable (best practice)
 # Example: "postgresql://user:password@host:port/dbname"
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fastapi_user:password@localhost:5432/fastapi_db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://fastapi_user:password@localhost:5432/fastapi_db"
+)
 
 # 1. SQLAlchemy Engine
 # The engine is the starting point for all SQLAlchemy applications.
@@ -13,7 +15,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://fastapi_user:password@loc
 engine = create_engine(
     DATABASE_URL,
     # Only needed for SQLite to handle concurrent requests
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
 )
 
 # 2. SessionLocal
@@ -25,6 +27,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # This base class is inherited by all your SQLAlchemy ORM models.
 # It links the ORM models to the SQLAlchemy engine.
 Base = declarative_base()
+
 
 def get_db():
     """

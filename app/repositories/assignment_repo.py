@@ -12,23 +12,28 @@ class AssignmentRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_assignment(self, experiment_id: str, user_id: str) -> Optional[AssignmentORM]:
+    def get_assignment(
+        self, experiment_id: str, user_id: str
+    ) -> Optional[AssignmentORM]:
         """Retrieves a persistent assignment for a user in a specific experiment."""
-        return self.db.query(AssignmentORM).filter(
-            AssignmentORM.experiment_id == experiment_id,
-            AssignmentORM.user_id == user_id
-        ).one_or_none()
+        return (
+            self.db.query(AssignmentORM)
+            .filter(
+                AssignmentORM.experiment_id == experiment_id,
+                AssignmentORM.user_id == user_id,
+            )
+            .one_or_none()
+        )
 
     def get_assignments_for_experiment(self, experiment_id: str) -> list[AssignmentORM]:
         """Retrieves a persistent assignment for a user in a specific experiment."""
-        stmt = select(AssignmentORM).where(
-            AssignmentORM.experiment_id == experiment_id
-        )
+        stmt = select(AssignmentORM).where(AssignmentORM.experiment_id == experiment_id)
 
         return self.db.scalars(stmt).all()
 
-
-    def create_assignment(self, experiment_id: str, user_id: str, variant_id: str) -> AssignmentORM:
+    def create_assignment(
+        self, experiment_id: str, user_id: str, variant_id: str
+    ) -> AssignmentORM:
         """
         Creates a new assignment record.
         Note: The ExperimentService must ensure this isn't a duplicate.
@@ -38,7 +43,7 @@ class AssignmentRepository:
                 experiment_id=experiment_id,
                 user_id=user_id,
                 variant_id=variant_id,
-                assignment_timestamp=datetime.utcnow()
+                assignment_timestamp=datetime.utcnow(),
             )
 
             # Using the safer commit pattern

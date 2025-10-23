@@ -1,4 +1,14 @@
-from sqlalchemy import Column, String, Float, Boolean, ForeignKey, DateTime, Text, Enum, PrimaryKeyConstraint
+from sqlalchemy import (
+    Column,
+    String,
+    Float,
+    Boolean,
+    ForeignKey,
+    DateTime,
+    Text,
+    Enum,
+    PrimaryKeyConstraint,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -6,6 +16,7 @@ import enum
 from .base import Base
 
 from sqlalchemy.types import TypeEngine
+
 try:
     # Use JSONB for PostgreSQL if available (recommended)
     from sqlalchemy.dialects.postgresql import JSONB as JSON_TYPE
@@ -26,9 +37,10 @@ class ExperimentStatus(enum.Enum):
     COMPLETED = "COMPLETED"
     ARCHIVED = "ARCHIVED"
 
+
 # --- Experiment Model ---
 class ExperimentORM(Base):
-    __tablename__ = 'experiments'
+    __tablename__ = "experiments"
 
     # --- Core Identifiers ---
     experiment_id = Column(String, primary_key=True, index=True)
@@ -36,7 +48,9 @@ class ExperimentORM(Base):
     description = Column(Text)
 
     # --- Lifecycle and Governance ---
-    status = Column(Enum(ExperimentStatus), default=ExperimentStatus.DRAFT, nullable=False)
+    status = Column(
+        Enum(ExperimentStatus), default=ExperimentStatus.DRAFT, nullable=False
+    )
 
     # 🎯 NEW: Tracking who created and last updated the experiment
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -59,9 +73,10 @@ class ExperimentORM(Base):
     # One Experiment has Many Events
     events = relationship("EventORM", back_populates="experiment")
 
+
 # --- Variant Configuration Model ---
 class VariantORM(Base):
-    __tablename__ = 'variants'
+    __tablename__ = "variants"
 
     variant_id = Column(String, primary_key=True)
     variant_name = Column(String, nullable=False)
@@ -72,10 +87,9 @@ class VariantORM(Base):
     configuration_json = Column(JSON_TYPE, nullable=True)
 
     # 🎯 Foreign Key: This is the "many" side pointing to the "one" Experiment
-    experiment_id = Column(String, ForeignKey('experiments.experiment_id'), nullable=False, index=True)
+    experiment_id = Column(
+        String, ForeignKey("experiments.experiment_id"), nullable=False, index=True
+    )
 
     # Relationship to Parent
     experiment = relationship("ExperimentORM", back_populates="variants")
-
-
-

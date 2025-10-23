@@ -1,4 +1,14 @@
-from sqlalchemy import Column, String, Float, Boolean, ForeignKey, DateTime, Text, Enum, PrimaryKeyConstraint
+from sqlalchemy import (
+    Column,
+    String,
+    Float,
+    Boolean,
+    ForeignKey,
+    DateTime,
+    Text,
+    Enum,
+    PrimaryKeyConstraint,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -7,6 +17,7 @@ import enum
 from .base import Base
 
 from sqlalchemy.types import TypeEngine
+
 try:
     # Use JSONB for PostgreSQL if available (recommended)
     from sqlalchemy.dialects.postgresql import JSONB as JSON_TYPE
@@ -18,8 +29,9 @@ except ImportError:
         # Final fallback to Text (requires application-level JSON serialization/deserialization)
         JSON_TYPE = Text
 
+
 class EventORM(Base):
-    __tablename__ = 'events'
+    __tablename__ = "events"
 
     # --- Core Identifiers ---
     # Primary Key - Every event needs a unique identifier
@@ -33,7 +45,9 @@ class EventORM(Base):
 
     # 🎯 Contextual Link - Which experiment was the user assigned to AT THE TIME OF THE EVENT
     # This is crucial for filtering and analysis.
-    experiment_id = Column(String, ForeignKey('experiments.experiment_id'), index=True, nullable=True)
+    experiment_id = Column(
+        String, ForeignKey("experiments.experiment_id"), index=True, nullable=True
+    )
 
     # --- Metadata ---
     # Timestamp - When the action occurred

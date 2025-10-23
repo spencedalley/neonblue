@@ -6,7 +6,11 @@ from starlette import status
 from app.core.auth import require_auth_token
 from app.core.db import get_db
 from app.models.schemas.event import EventResponseModel, EventCreateModel
-from app.models.schemas.experiment import ExperimentResponseModel, ExperimentCreateModel, AssignmentModel
+from app.models.schemas.experiment import (
+    ExperimentResponseModel,
+    ExperimentCreateModel,
+    AssignmentModel,
+)
 from app.services.event_service import EventService
 from fastapi import APIRouter, Depends, status, Path
 
@@ -19,6 +23,7 @@ app = FastAPI(
     version="0.0.1",
     dependencies=[Depends(require_auth_token)],
 )
+
 
 @app.post(
     "/experiments",
@@ -34,12 +39,12 @@ def post_experiments(
     return created_experiment
 
 
-
-@app.get("/experiments/{experiment_id}/assignment/{user_id}",
-         response_model=AssignmentModel,
-         status_code=status.HTTP_200_OK,
-         summary="Get user assignment",
-         )
+@app.get(
+    "/experiments/{experiment_id}/assignment/{user_id}",
+    response_model=AssignmentModel,
+    status_code=status.HTTP_200_OK,
+    summary="Get user assignment",
+)
 def get_user_variant_assignment(
     experiment_id: str = Path(..., description="The ID of the experiment."),
     user_id: str = Path(..., description="The ID of the user."),
@@ -57,6 +62,7 @@ def get_user_variant_assignment(
     )
 
     return assignment_model
+
 
 @app.post(
     "/events",
@@ -86,10 +92,11 @@ def post_events(event_data: EventCreateModel, db: Session = Depends(get_db)):
         )
 
 
-@app.get("/experiments/{experiment_id}/results",
-         status_code=status.HTTP_200_OK,
-         summary="Get statistics for experiments",
-         )
+@app.get(
+    "/experiments/{experiment_id}/results",
+    status_code=status.HTTP_200_OK,
+    summary="Get statistics for experiments",
+)
 def get_experiment_results(experiment_id: str, db: Session = Depends(get_db)):
     """
 

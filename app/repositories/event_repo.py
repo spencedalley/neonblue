@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -8,7 +7,9 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.models.orm.event import EventORM  # Import the ORM model from the file we created
+from app.models.orm.event import (
+    EventORM,
+)  # Import the ORM model from the file we created
 from app.models.schemas.event import EventCreateModel
 
 
@@ -19,9 +20,7 @@ class EventRepository:
 
     def get_events_for_experiment(self, experiment_id: str) -> list[EventORM]:
 
-        stmt = select(EventORM).where(
-            EventORM.experiment_id == experiment_id
-        )
+        stmt = select(EventORM).where(EventORM.experiment_id == experiment_id)
 
         return self.db.scalars(stmt).all()
 
@@ -41,15 +40,15 @@ class EventRepository:
         event_dict = event_data.model_dump(exclude_unset=True)
 
         # Ensure ID is set
-        if 'event_id' not in event_dict:
-            event_dict['event_id'] = str(uuid.uuid4())
+        if "event_id" not in event_dict:
+            event_dict["event_id"] = str(uuid.uuid4())
 
         # Ensure timestamp is set if not provided by Pydantic model
-        if 'timestamp' not in event_dict:
-            event_dict['timestamp'] = datetime.utcnow()
+        if "timestamp" not in event_dict:
+            event_dict["timestamp"] = datetime.utcnow()
 
         # 2. Add required database fields
-        event_dict['event_id'] = str(uuid.uuid4())
+        event_dict["event_id"] = str(uuid.uuid4())
 
         # 3. Create the ORM instance
         db_event = EventORM(**event_dict)
@@ -57,7 +56,9 @@ class EventRepository:
             # 4. Save to the database
             self.db.add(db_event)
             self.db.commit()
-            self.db.refresh(db_event)  # Refresh to get auto-generated fields if any (like the final timestamp)
+            self.db.refresh(
+                db_event
+            )  # Refresh to get auto-generated fields if any (like the final timestamp)
             # 🎯 Targeted Error Handling: Mapping database errors to HTTP errors
         except IntegrityError as e:
             # Catch errors like Foreign Key or NOT NULL constraint violations (bad user input)
@@ -67,7 +68,7 @@ class EventRepository:
             # 400 Bad Request: The request data violates a database rule
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid event data: A required field is missing or a foreign key reference is invalid. Details: {str(e).splitlines()[0]}"
+                detail=f"Invalid event data: A required field is missing or a foreign key reference is invalid. Details: {str(e).splitlines()[0]}",
             )
 
         except OperationalError as e:
@@ -78,7 +79,7 @@ class EventRepository:
             # 503 Service Unavailable: The database is currently unreachable
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Database connection failed. Please try again shortly."
+                detail="Database connection failed. Please try again shortly.",
             )
 
         except SQLAlchemyError as e:
@@ -89,7 +90,7 @@ class EventRepository:
             # 500 Internal Server Error: General database processing failure
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"An unexpected database error occurred."
+                detail=f"An unexpected database error occurred.",
             )
 
         except Exception as e:
@@ -100,7 +101,7 @@ class EventRepository:
             # 500 Internal Server Error: General application failure
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An unexpected server error occurred during event creation."
+                detail="An unexpected server error occurred during event creation.",
             )
 
         return db_event
