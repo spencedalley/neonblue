@@ -72,7 +72,7 @@ class ExperimentService:
         Selects a variant based on configured traffic allocation percentages.
         """
         # Create a list of tuples: (traffic_allocation_percent, VariantORM)
-        choices = [(v.traffic_allocation_percent, v) for v in variants]
+        choices = [(v.traffic_allocation_percent, v) for v in sorted(variants, key=lambda x: x.variant_name)]
 
         # Build the cumulative distribution for weighted random selection
         total_weight = sum(w for w, v in choices)
@@ -82,8 +82,10 @@ class ExperimentService:
 
         # Simple weighted random selection
         r = random.uniform(0, total_weight)
+
         cumulative_weight = 0
         for weight, variant in choices:
+            print(f"Assigning variant:\ncum weight: {cumulative_weight}, weight: {weight}, r: {r}")
             cumulative_weight += weight
             if r <= cumulative_weight:
                 return variant
