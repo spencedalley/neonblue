@@ -7,10 +7,14 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.models.orm.event import EventORM
-from app.models.schemas.experiment import ExperimentCreateModel, ExperimentResponseModel, AssignmentModel
+from app.models.schemas.experiment import (
+    ExperimentCreateModel,
+    ExperimentResponseModel,
+    AssignmentModel,
+)
 from app.repositories.assignment_repo import AssignmentRepository
 from app.repositories.event_repo import EventRepository
-from app.repositories.experiment_repo import ExperimentRepository  # We need this to get variants
+from app.repositories.experiment_repo import ExperimentRepository
 from app.models.orm.assignment import AssignmentORM
 from app.models.orm.experiment import VariantORM, ExperimentORM
 from fastapi import HTTPException, status
@@ -24,7 +28,9 @@ class ExperimentService:
         self.event_repo = EventRepository(db)
         self.db = db
 
-    def create_experiment(self, experiment_data: ExperimentCreateModel) -> ExperimentResponseModel:
+    def create_experiment(
+        self, experiment_data: ExperimentCreateModel
+    ) -> ExperimentResponseModel:
         """
         Handles the business logic and delegation for creating a new experiment.
 
@@ -35,21 +41,20 @@ class ExperimentService:
             # Delegate the transactional database operation to the Repository
             experiment_orm = self.experiment_repo.create_experiment(experiment_data)
 
-            experiment_response_model = ExperimentResponseModel.model_validate(experiment_orm)
+            experiment_response_model = ExperimentResponseModel.model_validate(
+                experiment_orm
+            )
 
             return experiment_response_model
 
         except ValueError as e:
             # Catch business validation errors raised by the Repository (e.g., 100% traffic check)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
             # Catch other unexpected errors
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create experiment: {str(e)}"
+                detail=f"Failed to create experiment: {str(e)}",
             )
 
     # Helper function for traffic allocation (simplified)
@@ -87,17 +92,26 @@ class ExperimentService:
         """
 
         # 1. Check for existing assignment (Idempotency)
-        existing_assignment = self.assignment_repo.get_assignment(experiment_id, user_id)
+        existing_assignment = self.assignment_repo.get_assignment(
+            experiment_id, user_id
+        )
         if existing_assignment:
-            print(f"User {user_id} already assigned to variant {existing_assignment.variant_id}. Returning existing.")
+            print(
+                f"User {user_id} already assigned to variant {existing_assignment.variant_id}. Returning existing."
+            )
             return AssignmentModel.model_validate(existing_assignment)
 
         # --- If no existing assignment, proceed to allocation ---
 
         # Fetch the variants and their configurations from the experiment (requires joins/queries)
-        experiment = self.experiment_repo.get_experiment_with_variants(experiment_id)  # Assuming this method exists
+        experiment = self.experiment_repo.get_experiment_with_variants(
+            experiment_id
+        )  # Assuming this method exists
         if not experiment:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Experiment {experiment_id} not found.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Experiment {experiment_id} not found.",
+            )
 
         # Filter to only RUNNING experiments in a real-world scenario
         # if experiment.status != ExperimentStatus.RUNNING:
@@ -107,16 +121,20 @@ class ExperimentService:
         assigned_variant = self._allocate_variant(experiment.variants)
 
         # 3. Persist the new assignment
-        print(f"Assigning user {user_id} to new variant {assigned_variant.variant_id} for persistence.")
+        print(
+            f"Assigning user {user_id} to new variant {assigned_variant.variant_id} for persistence."
+        )
         new_assignment = self.assignment_repo.create_assignment(
             experiment_id=experiment_id,
             user_id=user_id,
-            variant_id=assigned_variant.variant_id
+            variant_id=assigned_variant.variant_id,
         )
 
         return AssignmentModel.model_validate(new_assignment)
 
-    def get_experiment_results(self, experiment_id: str, config: Optional[dict[str, str]] = None):
+    def get_experiment_results(
+        self, experiment_id: str, config: Optional[dict[str, str]] = None
+    ):
         """
         Get the following:
 
@@ -133,21 +151,51 @@ class ExperimentService:
         :return:
         """
         # Retrieve relevant data
-        experiment_orm = self.experiment_repo.get_experiment_with_variants(experiment_id)
+        experiment_orm = self.experiment_repo.get_experiment_with_variants(
+            experiment_id
+        )
         variants_orm = experiment_orm.variants
-        assignment_orm = self.assignment_repo.get_assignments_for_experiment(experiment_id)
+        assignment_orm = self.assignment_repo.get_assignments_for_experiment(
+            experiment_id
+        )
         experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id)
 
+        # lookups --> should probably fix with joins in sql
+        user_to_variant_assignment = {
+            assignment.user_id: {
+                "variant_id": assignment.variant_id,
+                "assignment_timestamp": assignment.assignment_timestamp,
+            }
+            for assignment in assignment_orm
+        }
+        variant_id_to_variant_name = {
+            variant.variant_id: variant.variant_name for variant in variants_orm
+        }
+
         # filter out events based on timestamp --> could move this to Repo layer in sql query later
-        filtered_events: list[EventORM] = [event for event in experiment_events_orm if event.timestamp >= experiment_orm.start_time]
+        filtered_events: list[EventORM] = []
+        for event in experiment_events_orm:
+            user_assignment_timestamp = user_to_variant_assignment[event.user_id][
+                "assignment_timestamp"
+            ]
+            if event.timestamp >= user_assignment_timestamp:
+                filtered_events.append(event)
 
         # global experiment stats
-        days_running = (experiment_orm.end_time - experiment_orm.start_time).days if experiment_orm.end_time and datetime.utcnow() > experiment_orm.end_time else (datetime.utcnow() - experiment_orm.start_time).days
-        global_conversion_rate = len(set([event.user_id for event in experiment_events_orm if event.type == experiment_orm.primary_metric_name])) / len(assignment_orm)
-
-        # lookups --> should probably fix with joins in sql
-        user_to_variant_assignment = {assignment.user_id: assignment.variant_id for assignment in assignment_orm}
-        variant_id_to_variant_name = {variant.variant_id: variant.variant_name for variant in variants_orm}
+        days_running = (
+            (experiment_orm.end_time - experiment_orm.start_time).days
+            if experiment_orm.end_time and datetime.utcnow() > experiment_orm.end_time
+            else (datetime.utcnow() - experiment_orm.start_time).days
+        )
+        global_conversion_rate = len(
+            set(
+                [
+                    event.user_id
+                    for event in experiment_events_orm
+                    if event.type == experiment_orm.primary_metric_name
+                ]
+            )
+        ) / len(assignment_orm)
 
         # aggregate event stats on variant level
         variant_stats = {}  # {variant_id: {total_users, metric_counts, conversion_users
@@ -159,16 +207,20 @@ class ExperimentService:
             user_id = assignment.user_id
 
             if variant_name not in variant_stats:
-                variant_stats[variant_name] = {"users": set(), "event_type_counts": defaultdict(int),
-                                               "conversion_users": set()}
+                variant_stats[variant_name] = {
+                    "users": set(),
+                    "event_type_counts": defaultdict(int),
+                    "conversion_users": set(),
+                }
 
             variant_stats[variant_name]["users"].add(user_id)
 
+        # user_stats = {} # count of number of events by user
 
         for event in experiment_events_orm:
             user_id = event.user_id
             metric = event.type
-            variant_id = user_to_variant_assignment.get(user_id)
+            variant_id = user_to_variant_assignment.get(user_id).get("variant_id")
             variant_name = variant_id_to_variant_name.get(variant_id)
 
             variant_stats[variant_name]["event_type_counts"][metric] += 1
@@ -186,7 +238,7 @@ class ExperimentService:
             agg_variant_stats[variant_name] = {
                 "total_users": total_users,
                 "conversion_rate": conversion_rate,
-                "event_counts": stats.get("event_type_counts")
+                "event_counts": stats.get("event_type_counts"),
             }
 
         result = {
@@ -201,9 +253,8 @@ class ExperimentService:
             "primary_metric_name": experiment_orm.primary_metric_name,
             "total_users_in_experiment": len(assignment_orm),
             "global_conversion_rate": global_conversion_rate,
-
             # variant drill down stats
-            "variant_stats": agg_variant_stats
+            "variant_stats": agg_variant_stats,
         }
 
         return result
