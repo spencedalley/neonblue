@@ -68,6 +68,24 @@ services:
       # Mount the current code into the container for easy development/reloads (optional)
       - .:/app
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_container
+    restart: always
+    environment:
+      # These set the credentials you use to LOG IN to the pgAdmin UI
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: verysecretpassword
+    ports:
+      # Map the pgAdmin web UI port (80) to your host port (e.g., 5050)
+      - "5050:80"
+    depends_on:
+      - db
+    volumes:
+      # Persist pgAdmin configuration/server lists
+      - pgadmin_data:/var/lib/pgadmin
+
 volumes:
   # Define the named volume for persistent data storage
   postgres_data:
+  pgadmin_data:
