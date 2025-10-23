@@ -1,7 +1,7 @@
 # services/experiment_service.py
 
 import random
-
+from collections import defaultdict
 from sqlalchemy.dialects.postgresql import psycopg2
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -14,7 +14,7 @@ from app.repositories.experiment_repo import ExperimentRepository  # We need thi
 from app.models.orm.assignment import AssignmentORM
 from app.models.orm.experiment import VariantORM, ExperimentORM
 from fastapi import HTTPException, status
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 class ExperimentService:
@@ -116,7 +116,7 @@ class ExperimentService:
 
         return AssignmentModel.model_validate(new_assignment)
 
-    def get_experiment_results(self, experiment_id: str, config: dict[str, str]):
+    def get_experiment_results(self, experiment_id: str, config: Optional[dict[str, str]] = None):
         """
         Get the following:
 
@@ -132,27 +132,63 @@ class ExperimentService:
         :param config:
         :return:
         """
+        # Retrieve relevant data
         experiment_orm = self.experiment_repo.get_experiment_with_variants(experiment_id)
         variants_orm = experiment_orm.variants
         assignment_orm = self.assignment_repo.get_assignments_for_experiment(experiment_id)
         experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id)
 
-        # filter out events based on timestamp
+        # filter out events based on timestamp --> could move this to Repo layer in sql query later
         filtered_events: list[EventORM] = [event for event in experiment_events_orm if event.timestamp >= experiment_orm.start_time]
 
+        # global experiment stats
         days_running = (experiment_orm.end_time - experiment_orm.start_time).days if experiment_orm.end_time and datetime.utcnow() > experiment_orm.end_time else (datetime.utcnow() - experiment_orm.start_time).days
+        global_conversion_rate = len(set([event.user_id for event in experiment_events_orm if event.type == experiment_orm.primary_metric_name])) / len(assignment_orm)
 
-        variant_stats = {}  # {variant_name: {users: set(), primary_metric_events_unique_users: set(), events: {event_name: count}}
+        # lookups --> should probably fix with joins in sql
+        user_to_variant_assignment = {assignment.user_id: assignment.variant_id for assignment in assignment_orm}
+        variant_id_to_variant_name = {variant.variant_id: variant.variant_name for variant in variants_orm}
 
-        global_conversion_rate = len(set([event.user_id for event in experiment_events_orm if event.type == experiment_orm.primary_metric_name])) // len(assignment_orm)
+        # aggregate event stats on variant level
+        variant_stats = {}  # {variant_id: {total_users, metric_counts, conversion_users
+
+        # go over every assignment for the experiment and populate the variant stats
+        for assignment in assignment_orm:
+            variant_id = assignment.variant_id
+            variant_name = variant_id_to_variant_name[variant_id]
+            user_id = assignment.user_id
+
+            if variant_name not in variant_stats:
+                variant_stats[variant_name] = {"users": set(), "event_type_counts": defaultdict(int),
+                                               "conversion_users": set()}
+
+            variant_stats[variant_name]["users"].add(user_id)
 
 
+        for event in experiment_events_orm:
+            user_id = event.user_id
+            metric = event.type
+            variant_id = user_to_variant_assignment.get(user_id)
+            variant_name = variant_id_to_variant_name.get(variant_id)
 
-        for event in filtered_events:
-            if event.va
-            pass
+            variant_stats[variant_name]["event_type_counts"][metric] += 1
 
-        # conversion_rate = (unique users who fired primary metric / total users in experiment)
+            if metric == experiment_orm.primary_metric_name:
+                variant_stats[variant_name]["conversion_users"].add(user_id)
+
+        # clean up variant stats
+        agg_variant_stats = {}
+        for variant_name, stats in variant_stats.items():
+            total_users = len(stats.get("users"))
+            conversion_users = len(stats.get("conversion_users"))
+            conversion_rate = conversion_users / total_users
+
+            agg_variant_stats[variant_name] = {
+                "total_users": total_users,
+                "conversion_rate": conversion_rate,
+                "event_counts": stats.get("event_type_counts")
+            }
+
         result = {
             "name": experiment_orm.name,
             "description": experiment_orm.description,
@@ -160,22 +196,14 @@ class ExperimentService:
             "end_time": experiment_orm.end_time,
             "experiment_days_running": days_running,
             "status": experiment_orm.status,
-            "count_variants": len(variants_orm),
-            "count_events": len(filtered_events),
+            "total_variants": len(variants_orm),
+            "total_events": len(filtered_events),
             "primary_metric_name": experiment_orm.primary_metric_name,
             "total_users_in_experiment": len(assignment_orm),
-            "global_conversion_rate": global_conversion_rate
+            "global_conversion_rate": global_conversion_rate,
 
-            # conversion rate, number of users in variant, agg count event type
-            "variant_stats": [
-                {
-                    "variant_name": variant_name,
-                    "event_breakdown": {},
-                    "conversion_rate": 0.0,
-                    "total_users": 0.0,
-                 }
-            ]
-
+            # variant drill down stats
+            "variant_stats": agg_variant_stats
         }
 
-        pass
+        return result

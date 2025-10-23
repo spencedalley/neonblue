@@ -87,18 +87,18 @@ def post_events(event_data: EventCreateModel, db: Session = Depends(get_db)):
 
 
 @app.get("/experiments/{experiment_id}/results",
-         response_model=AssignmentModel,
          status_code=status.HTTP_200_OK,
          summary="Get statistics for experiments",
          )
-def get_experiment_results(experiment_id: str):
+def get_experiment_results(experiment_id: str, db: Session = Depends(get_db)):
     """
 
     :param experiment_id:
     :return:
     """
-
-    return {}
+    experiment_service = ExperimentService(db)
+    experiment_results = experiment_service.get_experiment_results(experiment_id)
+    return experiment_results
 
 
 # Optional: Entry point for running the application directly (useful for local development)
