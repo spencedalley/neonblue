@@ -18,9 +18,21 @@ class EventRepository:
         """Initializes the repository with a database session."""
         self.db = db
 
-    def get_events_for_experiment(self, experiment_id: str) -> list[EventORM]:
-
+    def get_events_for_experiment(self, experiment_id: str, **kwargs) -> list[EventORM]:
+        """
+                Retrieves events for a specific experiment, applying optional filters
+                for event type and time range.
+                """
         stmt = select(EventORM).where(EventORM.experiment_id == experiment_id)
+
+        if event_type := kwargs.get("event_type"):
+            stmt = stmt.where(EventORM.type == event_type)
+
+        if start_date := kwargs.get("start_date"):
+            stmt = stmt.where(EventORM.timestamp >= start_date)
+
+        if end_date := kwargs.get("end_date"):
+            stmt = stmt.where(EventORM.timestamp <= end_date)
 
         return self.db.scalars(stmt).all()
 

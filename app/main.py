@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException
+from datetime import datetime
+
+from fastapi import FastAPI, Depends, HTTPException, Query
 import uvicorn
 from sqlalchemy.orm import Session
 from starlette import status
@@ -97,14 +99,24 @@ def post_events(event_data: EventCreateModel, db: Session = Depends(get_db)):
     status_code=status.HTTP_200_OK,
     summary="Get statistics for experiments",
 )
-def get_experiment_results(experiment_id: str, db: Session = Depends(get_db)):
-    """
-
-    :param experiment_id:
-    :return:
-    """
+def get_experiment_results(
+    experiment_id: str,
+    event_type: str | None = Query(None,),
+    start_date: datetime | None = Query(
+        None,
+    ),
+    end_date: datetime | None = Query(
+        None,
+    ),
+    db: Session = Depends(get_db),
+):
+    filter_params = {
+        "event_type": event_type,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
     experiment_service = ExperimentService(db)
-    experiment_results = experiment_service.get_experiment_results(experiment_id)
+    experiment_results = experiment_service.get_experiment_results(experiment_id, filter_params)
     return experiment_results
 
 

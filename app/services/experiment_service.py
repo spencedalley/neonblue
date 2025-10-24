@@ -234,7 +234,6 @@ class ExperimentService:
         :param filter_params:
         :return:
         """
-        # Get experimet
         experiment_orm = self.experiment_repo.get_experiment_with_variants(
             experiment_id
         )
@@ -250,7 +249,7 @@ class ExperimentService:
         assignment_orm = self.assignment_repo.get_assignments_for_experiment(
             experiment_id
         )
-        experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id)
+        experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id, **filter_params)
 
         # lookup tables
         user_to_variant_assignment = {
