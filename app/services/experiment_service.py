@@ -1,5 +1,5 @@
 # services/experiment_service.py
-
+import mmh3
 import random
 from collections import defaultdict
 from sqlalchemy.dialects.postgresql import psycopg2
@@ -79,7 +79,7 @@ class ExperimentService:
             )
 
     # Helper function for traffic allocation (simplified)
-    def _allocate_variant(self, variants: List[VariantORM]) -> VariantORM:
+    def _allocate_variant(self, user_id: str, variants: List[VariantORM]) -> VariantORM:
         """
         Selects a variant based on configured traffic allocation percentages.
         """
@@ -95,8 +95,9 @@ class ExperimentService:
             # Should not happen if experiment creation validates to 100%
             raise ValueError("Experiment has no allocated traffic.")
 
-        # Simple weighted random selection
-        r = random.uniform(0, total_weight)
+        # use murmurhash to get deterministic unsigned int from roughly uniform dist, normalize to [0, 100) for bucketing
+        hash_unsigned = mmh3.hash(user_id, 0, signed=False)
+        r = ((hash_unsigned / 2**32) * 100)
 
         cumulative_weight = 0
         for weight, variant in choices:
@@ -142,7 +143,7 @@ class ExperimentService:
             )
 
         # 2. Determine Assignment
-        assigned_variant = self._allocate_variant(experiment.variants)
+        assigned_variant = self._allocate_variant(user_id, experiment.variants)
 
         # 3. Persist the new assignment
         print(
