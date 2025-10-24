@@ -41,6 +41,7 @@ This command:
 The API service uses a relational database (PostgreSQL in this setup) for persistence. 
 The initial setup requires running database migrations and is handled by the `migrate` service in the docker-compose.yml.
 
+The database can be accessed using the pgadmin service provisioned by docker-compose. Navigate to localhost:5050 after running `docker-compose up` to access pgadmin. 
 
 
 ### 3\. Access the API
@@ -52,8 +53,6 @@ The API service will be accessible at: `http://localhost:8000`.
 ## 🔑 Authentication
 
 All endpoints require a valid **Bearer Token** in the `Authorization` header.
-
-In this takehome application, tokens are hardcoded in the settings.py file. 
 
 **Example Header:**
 
@@ -73,12 +72,8 @@ An up to date version of the endpoint documentation can be found at localhost:80
 
 ### 1\. Create a New Experiment
 
-**`POST /experiments`**
+**POST /experiments**
 
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `name` | string | A unique name for the experiment. |
-| `variants` | list of objects | List of variants with `name` and `traffic_percent`. |
 
 **Example Request:**
 
@@ -87,49 +82,64 @@ curl --location 'localhost:8000/experiments' \
 --header 'Authorization: Bearer token' \
 --header 'Content-Type: application/json' \
 --data '{
-    "name": "experiment2", 
+    "name": "experiment18", 
     "description": "test experiment", 
-    "status": "DRAFT", 
-    "primary_metric_name": "click", 
-    "variants": [{"variant_name": "variant1", "traffic_allocation_percent": 50, "configuration_json": {}}, {"variant_name": "variant2", "traffic_allocation_percent": 50, "configuration_json": {}}]
+    "status": "RUNNING", 
+    "primary_metric_name": "purchase", 
+    "variants": [{"variant_name": "variant1", "traffic_allocation_percent": 30, "configuration_json": {}}, {"variant_name": "variant2", "traffic_allocation_percent": 70, "configuration_json": {}}]
 }'
 ```
 
 **Expected Response:**
-```shell
-
+```josn
+{
+    "experiment_id": "6fae61db-a90b-4f35-889d-279fa5416fc4",
+    "name": "experiment18",
+    "description": "test experiment",
+    "status": "DRAFT",
+    "start_time": "2025-10-23T22:25:05.548612",
+    "end_time": null,
+    "variants": [
+        {
+            "variant_id": "d195a1fd-ad1a-4ee8-9a60-b930bad7e060",
+            "variant_name": "variant1",
+            "traffic_allocation_percent": 30.0
+        },
+        {
+            "variant_id": "233248a1-e150-4239-912f-3f8118668af5",
+            "variant_name": "variant2",
+            "traffic_allocation_percent": 70.0
+        }
+    ],
+    "primary_metric_name": "click"
+}
 ```
 
 -----
 
 ### 2\. Get User's Variant Assignment
 
-**`GET /experiments/{id}/assignment/{user_id}`**
+**`GET /experiments/{experiment_id}/assignment/{user_id}`**
 
 Retrieves or creates a persistent variant assignment for a given user in a specified experiment.
-
-| Path Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `id` | int | The experiment ID. |
-| `user_id` | string | The ID of the user (can be a UUID, numeric ID, etc.). |
 
 **Idempotency Check:** Repeated calls for the same `experiment_id` and `user_id` will return the *identical* assignment and assignment time.
 
 **Example Request (Initial Assignment):**
 
 ```bash
-curl -X GET http://localhost:8000/experiments/1/assignment/user_xyz_123 \
--H "Authorization: Bearer my-secret-auth-token"
+curl --location 'localhost:8000/experiments/6fae61db-a90b-4f35-889d-279fa5416fc4/assignment/test-user-18' \
+--header 'Authorization: Bearer token'
 ```
 
-**Example Response:**
+**Expected Response:**
 
 ```json
 {
-    "experiment_id": 1,
-    "user_id": "user_xyz_123",
-    "variant_name": "V1",
-    "assignment_timestamp": "2023-10-23T20:00:00Z"
+    "experiment_id": "6fae61db-a90b-4f35-889d-279fa5416fc4",
+    "user_id": "test-user-18",
+    "variant_id": "d195a1fd-ad1a-4ee8-9a60-b930bad7e060",
+    "assignment_timestamp": "2025-10-23T23:12:54.173787"
 }
 ```
 
@@ -141,64 +151,63 @@ curl -X GET http://localhost:8000/experiments/1/assignment/user_xyz_123 \
 
 Records an event associated with a user, used later for experiment analysis.
 
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `user_id` | string | The user who performed the event. |
-| `type` | string | The type of event (e.g., "click", "purchase", "signup"). |
-| `timestamp` | datetime | The time the event occurred. |
-| `properties` | JSON object | Flexible JSON object for additional context (e.g., purchase value, page URL). |
-
 **Example Request:**
 
 ```bash
-curl -X POST http://localhost:8000/events \
--H "Authorization: Bearer my-secret-auth-token" \
--H "Content-Type: application/json" \
--d '{
-    "user_id": "user_xyz_123",
-    "type": "purchase",
-    "timestamp": "2023-10-23T20:05:30Z",
-    "properties": {
-        "value": 49.99,
-        "product_sku": "SKU-PRO-001"
-    }
+curl --location 'localhost:8000/events' \
+--header 'Authorization: Bearer token' \
+--header 'Content-Type: application/json' \
+--data '{
+    "user_id": "test-user-2", 
+    "type": "purchase", 
+    "properties": {"price": 1000.00, "currency": "USD"}, 
+    "experiment_id": "6fae61db-a90b-4f35-889d-279fa5416fc4"
 }'
+```
+
+**Expected Response:**
+
+```json
+{
+    "event_id": "5d4e0388-64c8-4dfe-8ebd-08b692e55ee3",
+    "experiment_id": "6fae61db-a90b-4f35-889d-279fa5416fc4"
+}
 ```
 
 -----
 
 ### 4\. Get Experiment Performance Summary
 
-**`GET /experiments/{id}/results`**
+**`GET /experiments/{experiment_id}/results`**
 
 Retrieves a summary of the experiment's performance, comparing the results of all variants.
 
 **Core Logic:** Only events that occurred *after* a user's assignment timestamp are included in the results calculation.
 
-| Path Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `id` | int | The experiment ID. |
+| Path Parameter  | Type   | Description |
+|:----------------|:-------| :--- |
+| `experiment_id` | string | The experiment ID. |
 
-| Query Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `event_type` | string | **(Required)** The specific event type to analyze (e.g., "purchase", "signup"). |
-| `start_date` | datetime | Filter events occurring after this time. |
-| `end_date` | datetime | Filter events occurring before this time. |
-| `aggregation` | string | Level of aggregation (e.g., "daily", "total"). |
+| Query Parameter | Type   | Description                                                      |
+|:----------------|:-------|:-----------------------------------------------------------------|
+| `event_type`    | string | The specific event type to analyze (e.g., "purchase", "signup"). |
+| `start_date`    | date   | Filter events occurring after this time (e.g. 2025-10-22)        |
+| `end_date`      | date   | Filter events occurring before this time (e.g. 2025-10-22)                          |
 
 **Design Philosophy (Results Endpoint):**
 
 This endpoint is designed to be **flexible and analytical**, recognizing that different stakeholders need different views:
 
-  * **Real-time Monitoring**: The default response focuses on key metrics (e.g., **conversion rate**, total conversions) for a quick health check.
+  * **Real-time Monitoring**: 
+    - The default response focuses on key metrics (e.g., **conversion rate**, total conversions) for a quick health check.
   * **Deep Analysis**: Query parameters (`start_date`, `end_date`, `aggregation`) allow analysts to slice the data over time or by custom buckets.
   * **Executive Summaries**: The top-level response structure prioritizes easy-to-read comparative metrics (e.g., absolute conversion difference, lift).
 
 **Example Request (Focus on 'purchase' event):**
 
 ```bash
-curl -X GET 'http://localhost:8000/experiments/1/results' \
--H "Authorization: Bearer token"
+curl --location 'localhost:8000/experiments/6fae61db-a90b-4f35-889d-279fa5416fc4/results' \
+--header 'Authorization: Bearer token'
 ```
 
 **Example Response Structure (Conceptual):**
@@ -243,3 +252,68 @@ curl -X GET 'http://localhost:8000/experiments/1/results' \
     }
 }
 ```
+
+-----
+
+##  Architecture Discussion
+
+Here is a brief overview of the architecture and its core components:
+
+---
+
+### 1. Presentation Layer (FastAPI)
+
+The API is handled entirely by FastAPI, which acts as the front door for all client requests.
+
+* **Security Enforcement:** Authentication is handled by applying the **`require_auth_token` dependency globally**. This ensures that every endpoint is protected by a Bearer Token check before any business logic executes, standardizing the security model across the entire application.
+* **Request Validation:** All incoming and outgoing data is validated using **Pydantic models** (`EventCreateModel`, `ExperimentResponseModel`). This ensures data integrity at the system boundaries.
+* **Query Handling:** FastAPI automatically maps URL path segments (`experiment_id`), query parameters (`event_type`, `start_date`), and dependencies (`db` session) to the Python function signatures.
+
+---
+
+### 2. Business Logic Layer (Services)
+
+The service layer contains the core logic and coordinates work between the API and the data layer.
+
+* **`ExperimentService`:** Manages the lifecycle of A/B tests. Its key responsibility is the **assignment logic**, where it checks the database for an existing user assignment and, if none exists, determines the variant the user should see (the `_allocate_variant` function).
+* **`EventService`:** The primary job here is **data enrichment**. When an event comes in, the service looks up the user's *active assignment* and attaches that context (`experiment_id`, `variant_id`) to the event data *before* saving it.
+
+---
+
+### 3. Data Persistence Layer (Repository and ORM)
+
+This layer handles all direct communication with the relational database (PostgreSQL/SQLAlchemy).
+
+* **Repositories:** Classes like `EventRepository` and `AssignmentRepository` contain SQLAlchemy queries. They are responsible for CRUD operations and advanced filtering (like the `get_events_for_experiment` method).
+* **ORM Models:** The **SQLAlchemy ORM** models (`ExperimentORM`, `EventORM`, etc.) define the database schema, handle foreign key relationships, and map database rows to Python objects.
+* **Transaction Management:** Repositories enforce transactional integrity by explicitly calling `self.db.commit()` and handling exceptions (`IntegrityError`, `OperationalError`) with immediate **`self.db.rollback()`** calls. This keeps the database session healthy and provides robust error handling.
+
+---
+
+### Core A/B Testing Workflow
+
+The system's core function is realized through the interaction of these layers:
+
+1.  **Assignment:** A request hits `ExperimentService`. It checks the `AssignmentORM` via the repository. If not found, it runs the allocation logic, creates a new `AssignmentORM`, and commits it instantly.
+2.  **Event Tracking:** A request hits `EventService`. The service looks up the persistent assignment, attaches the contextual ID, and saves the enhanced event as an `EventORM` record.
+3.  **Reporting:** Requests hit the `/results` endpoint, triggering repository methods that join `AssignmentORM` and `EventORM` data to calculate conversion rates and provide analytics.
+
+
+### Extending the application for production 
+
+1. Have /events endpoint write events to SQS instead of directly to database. Prevents loss of events from errors during processing, allows for batching of writes to database (i.e. pull 10 events from queue and batch insert into db)
+2. Utilize a secrets manager for credentials instead of hardcoding them
+3. Send all logs to a centralized service like Cloudwatch for observability
+4. Utilize connection pooling when interacting with the database. Reduces latency from having to establish a new session connection each request
+5. Have postgres database utilize read replicas to decouple read from write traffic. 
+6. Deploy application to EKS for automatic scaling, load balancing, health checks, and service discovery.
+7. Make the endpoints async instead 
+
+### Improvement to prioritize next
+
+TODO: Add 
+
+### Explanation of /results endpoint 
+
+The result will provide a holistic view of the experiment and then drill down into the specifics of the variants. 
+
