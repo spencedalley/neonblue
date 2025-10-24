@@ -13,7 +13,7 @@ class EventCreateModel(BaseModel):
     type: str = Field(..., description="e.g., 'click', 'purchase', 'signup'")
     # We allow the timestamp to be optional in the API input; the server can set it if missing.
     timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
-    # Use a generic Dict for flexible properties
+
     properties: Dict = Field(default_factory=dict, description="Flexible JSON object.")
 
     # TODO: thinking of making this required

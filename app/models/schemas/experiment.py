@@ -94,8 +94,6 @@ class AssignmentModel(BaseModel):
         ..., description="The name of the variant the user was assigned."
     )
     assignment_timestamp: datetime = Field(default_factory=datetime.utcnow)
-    # Could be indexed by (experiment_id, user_id) for quick lookups
-
     model_config = ConfigDict(from_attributes=True)
 
 

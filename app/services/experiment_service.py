@@ -10,7 +10,8 @@ from app.models.orm.event import EventORM
 from app.models.schemas.experiment import (
     ExperimentCreateModel,
     ExperimentResponseModel,
-    AssignmentModel, ExperimentVariantConfigResponseModel,
+    AssignmentModel,
+    ExperimentVariantConfigResponseModel,
 )
 from app.repositories.assignment_repo import AssignmentRepository
 from app.repositories.event_repo import EventRepository
@@ -39,17 +40,28 @@ class ExperimentService:
         """
         try:
             # Delegate the transactional database operation to the Repository
-            experiment_orm: ExperimentORM = self.experiment_repo.create_experiment(experiment_data)
+            experiment_orm: ExperimentORM = self.experiment_repo.create_experiment(
+                experiment_data
+            )
 
-            experiment_response_model: ExperimentResponseModel = ExperimentResponseModel(
-                experiment_id=experiment_orm.experiment_id,
-                name=experiment_orm.name,
-                description=experiment_orm.description,
-                status=experiment_orm.status,
-                start_time=experiment_orm.start_time,
-                end_time=experiment_orm.end_time,
-                variants=[ExperimentVariantConfigResponseModel(variant_id=variant.variant_id, variant_name=variant.variant_name, traffic_allocation_percent=variant.traffic_allocation_percent) for variant in experiment_orm.variants],
-                primary_metric_name=experiment_orm.primary_metric_name,
+            experiment_response_model: ExperimentResponseModel = (
+                ExperimentResponseModel(
+                    experiment_id=experiment_orm.experiment_id,
+                    name=experiment_orm.name,
+                    description=experiment_orm.description,
+                    status=experiment_orm.status,
+                    start_time=experiment_orm.start_time,
+                    end_time=experiment_orm.end_time,
+                    variants=[
+                        ExperimentVariantConfigResponseModel(
+                            variant_id=variant.variant_id,
+                            variant_name=variant.variant_name,
+                            traffic_allocation_percent=variant.traffic_allocation_percent,
+                        )
+                        for variant in experiment_orm.variants
+                    ],
+                    primary_metric_name=experiment_orm.primary_metric_name,
+                )
             )
 
             return experiment_response_model
@@ -72,7 +84,10 @@ class ExperimentService:
         Selects a variant based on configured traffic allocation percentages.
         """
         # Create a list of tuples: (traffic_allocation_percent, VariantORM)
-        choices = [(v.traffic_allocation_percent, v) for v in sorted(variants, key=lambda x: x.variant_name)]
+        choices = [
+            (v.traffic_allocation_percent, v)
+            for v in sorted(variants, key=lambda x: x.variant_name)
+        ]
 
         # Build the cumulative distribution for weighted random selection
         total_weight = sum(w for w, v in choices)
@@ -85,7 +100,9 @@ class ExperimentService:
 
         cumulative_weight = 0
         for weight, variant in choices:
-            print(f"Assigning variant:\ncum weight: {cumulative_weight}, weight: {weight}, r: {r}")
+            print(
+                f"Assigning variant:\ncum weight: {cumulative_weight}, weight: {weight}, r: {r}"
+            )
             cumulative_weight += weight
             if r <= cumulative_weight:
                 return variant
@@ -173,7 +190,7 @@ class ExperimentService:
                 "event_type_counts": defaultdict(int),
                 "conversion_users": set(),
                 "metrics": {"total_revenue": 0.0},
-                "traffic_allocation": variant.traffic_allocation_percent
+                "traffic_allocation": variant.traffic_allocation_percent,
             }
 
         # pull out user counts per variant assignment
@@ -196,14 +213,18 @@ class ExperimentService:
                 variant_stats[variant.variant_name]["conversion_users"].add(user_id)
 
             if metric == "purchase" and event.properties.get("price"):
-                variant_stats[variant.variant_name]["metrics"]["total_revenue"] += event.properties.get("price")
+                variant_stats[variant.variant_name]["metrics"][
+                    "total_revenue"
+                ] += event.properties.get("price")
 
         # structure aggregated variant stats
         agg_variant_stats = {}
         for variant_name, stats in variant_stats.items():
             total_users = len(stats.get("users"))
             conversion_users = len(stats.get("conversion_users"))
-            conversion_rate = conversion_users / total_users if total_users != 0 else 0.0
+            conversion_rate = (
+                conversion_users / total_users if total_users != 0 else 0.0
+            )
 
             agg_variant_stats[variant_name] = {
                 "total_assigned_users": total_users,
@@ -211,7 +232,7 @@ class ExperimentService:
                 "conversion_count": conversion_users,
                 "event_counts": stats.get("event_type_counts"),
                 "metrics": stats.get("metrics"),
-                "traffic_allocation": stats.get("traffic_allocation")
+                "traffic_allocation": stats.get("traffic_allocation"),
             }
 
         return agg_variant_stats
@@ -219,21 +240,6 @@ class ExperimentService:
     def get_experiment_results(
         self, experiment_id: str, filter_params: Optional[dict[str, str]] = None
     ):
-        """
-        Get the following:
-
-        experiment_total_enrollment
-        experiment overview: start_date, end_date, total_enrollment, days running, experiment status
-
-        Daily event volume
-        Weekly event volume
-        Variant Level analysis:
-        - Raw count of a specific EventORM.type (e.g., "click") per variant.
-        -
-        :param experiment_id:
-        :param filter_params:
-        :return:
-        """
         experiment_orm = self.experiment_repo.get_experiment_with_variants(
             experiment_id
         )
@@ -249,7 +255,9 @@ class ExperimentService:
         assignment_orm = self.assignment_repo.get_assignments_for_experiment(
             experiment_id
         )
-        experiment_events_orm = self.event_repo.get_events_for_experiment(experiment_id, **filter_params)
+        experiment_events_orm = self.event_repo.get_events_for_experiment(
+            experiment_id, **filter_params
+        )
 
         # lookup tables
         user_to_variant_assignment = {
@@ -274,15 +282,20 @@ class ExperimentService:
             if experiment_orm.end_time and datetime.utcnow() > experiment_orm.end_time
             else (datetime.utcnow() - experiment_orm.start_time).days
         )
-        global_conversion_rate = len(
-            set(
-                [
-                    event.user_id
-                    for event in filtered_events
-                    if event.type == experiment_orm.primary_metric_name
-                ]
+        global_conversion_rate = (
+            len(
+                set(
+                    [
+                        event.user_id
+                        for event in filtered_events
+                        if event.type == experiment_orm.primary_metric_name
+                    ]
+                )
             )
-        ) / len(assignment_orm) if len(assignment_orm) else 0.0
+            / len(assignment_orm)
+            if len(assignment_orm)
+            else 0.0
+        )
 
         variant_agg_stats = self._generate_variant_agg_stats(
             experiment_orm.variants,

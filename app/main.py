@@ -101,7 +101,9 @@ def post_events(event_data: EventCreateModel, db: Session = Depends(get_db)):
 )
 def get_experiment_results(
     experiment_id: str,
-    event_type: str | None = Query(None,),
+    event_type: str | None = Query(
+        None,
+    ),
     start_date: datetime | None = Query(
         None,
     ),
@@ -116,7 +118,9 @@ def get_experiment_results(
         "end_date": end_date,
     }
     experiment_service = ExperimentService(db)
-    experiment_results = experiment_service.get_experiment_results(experiment_id, filter_params)
+    experiment_results = experiment_service.get_experiment_results(
+        experiment_id, filter_params
+    )
     return experiment_results
 
 

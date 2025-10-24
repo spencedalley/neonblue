@@ -26,7 +26,8 @@ class EventService:
             recorded_event = self.event_repo.create_event(event_data=event_data)
 
             return EventResponseModel(
-                event_id=recorded_event.event_id, experiment_id=recorded_event.experiment_id
+                event_id=recorded_event.event_id,
+                experiment_id=recorded_event.experiment_id,
             )
         except ValueError:
             raise HTTPException(

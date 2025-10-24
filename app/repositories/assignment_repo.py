@@ -46,7 +46,6 @@ class AssignmentRepository:
                 assignment_timestamp=datetime.utcnow(),
             )
 
-            # Using the safer commit pattern
             self.db.add(db_assignment)
             self.db.commit()
             self.db.refresh(db_assignment)
