@@ -33,7 +33,7 @@ This command:
 1.  Builds the Python application image.
 2.  Starts a **PostgreSQL** database container.
 3.  Runs alembic migrations for the application against the postgres database
-4.  Starts a PgAdmin container for easy access for inspecting the postgresql database container. Accessible via localhost:5050.
+4.  Starts a PgAdmin container for easy access for inspecting the postgresql database container. Accessible via localhost:5050. Login with the creds in docker-compose.yml
 3.  Starts the **API service** container, which connects to the database. 
 
 ### 2\. Initial Database Setup
