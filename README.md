@@ -48,6 +48,12 @@ The database can be accessed using the pgadmin service provisioned by docker-com
 
 The API service will be accessible at: `http://localhost:8000`.
 
+Running the following script will create a random experiment with variants, add 3 user assignments, create events for the users, and then hit the /results endpoint 
+
+```bash
+./demo.sh
+```
+
 -----
 
 ## 🔑 Authentication
@@ -307,7 +313,7 @@ The system's core function is realized through the interaction of these layers:
 4. Utilize connection pooling when interacting with the database. Reduces latency from having to establish a new session connection each request
 5. Have postgres database utilize read replicas to decouple read from write traffic. 
 6. Deploy application to EKS for automatic scaling, load balancing, health checks, and service discovery.
-7. Make the endpoints async instead 
+7. Make the endpoints async/await; use AIO 
 
 ### Improvement to prioritize next
 
@@ -315,5 +321,17 @@ TODO: Add
 
 ### Explanation of /results endpoint 
 
-The result will provide a holistic view of the experiment and then drill down into the specifics of the variants. 
+The returned data is structured to give you both the big picture and the granular details needed to make a winner call. You'll receive:
+
+Experiment Summary: Key attributes, runtime status, and overall experiment conversion performance.
+
+Variant Performance Breakdown: Detailed statistics for each challenger and control group, focusing on:
+
+Variant-Level Conversions: Specific conversion rates and total users assigned.
+
+Event Volume: Raw counts for the primary metric and other tracked events.
+
+Advanced Metrics: Aggregated numerical data (e.g., total revenue or profit) extracted from event metadata.
+
+
 
